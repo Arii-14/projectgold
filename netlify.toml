@@ -1,0 +1,30 @@
+[build]
+  # Directory that contains the deploy-ready HTML files and assets
+  publish = "."
+
+# Redirect root URL to the specific HTML file
+[[redirects]]
+  from = "/"
+  to = "/Prediksi-harga-emas.html"
+  status = 301
+  force = true
+
+# Fallback for any other route (if you want to treat it as a SPA)
+# [[redirects]]
+#   from = "/*"
+#   to = "/Prediksi-harga-emas.html"
+#   status = 200
+
+# Set caching and security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+
+# Cache the CSV file to improve performance on subsequent visits
+[[headers]]
+  for = "/*.csv"
+  [headers.values]
+    Cache-Control = "public, max-age=86400" # Cache for 24 hours
