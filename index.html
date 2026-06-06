@@ -126,11 +126,31 @@
         outline: none;
         text-align: center;
         width: 100%;
+        cursor: pointer;
+        appearance: none;          /* Hilangkan arrow default di beberapa browser */
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        /* Tambahkan custom arrow dengan posisi tidak terlalu ujung */
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23FFD966' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+        background-repeat: no-repeat;
+        background-position: right 1.2rem center;   /* anak panah tidak paling ujung, ada jarak 1.2rem dari kanan */
+        background-size: 1.2rem;
+        padding-right: 2.8rem;     /* beri ruang ekstra agar teks tidak ketutupan panah */
     }
+    /* Hover & focus tetap sama */
     input:focus, select:focus {
         border-color: gold;
         box-shadow: 0 0 6px rgba(255,215,0,0.6);
         background: #1a3f4b;
+    }
+    input::placeholder {
+        color: #bbaa77;
+        font-size: 0.85rem;
+    }
+    /* style khusus untuk option (opsional) */
+    select option {
+        background: #0f2f3b;
+        color: #f0f3f8;
     }
     .button-container {
         display: flex;
@@ -250,6 +270,12 @@
         display: inline-block;
         width: auto;
     }
+    .validation-message {
+        font-size: 0.7rem;
+        color: #ffaa66;
+        text-align: center;
+        margin-top: 8px;
+    }
 </style>
 </head>
 <body>
@@ -275,15 +301,15 @@
     <div class="input-panel">
         <div class="input-group">
             <label>📅 TANGGAL</label>
-            <input type="number" id="tanggal" placeholder="DD" min="1" max="31">
+            <input type="number" id="tanggal" placeholder="DD" min="1" max="31" value="">
         </div>
         <div class="input-group">
             <label>📅 BULAN</label>
-            <input type="number" id="bulan" placeholder="MM" min="1" max="12">
+            <input type="number" id="bulan" placeholder="MM" min="1" max="12" value="">
         </div>
         <div class="input-group">
             <label>📅 TAHUN</label>
-            <input type="number" id="tahun" placeholder="YYYY">
+            <input type="number" id="tahun" placeholder="YYYY" value="">
         </div>
         <div class="input-group">
             <label>KARAT</label>
@@ -296,6 +322,7 @@
                 <option value="10">10 Karat</option>
             </select>
         </div>
+        <div id="inputValidationMsg" class="validation-message"></div>
     </div>
 
     <div class="button-container">
@@ -314,7 +341,7 @@
     // VARIABEL PENDUKUNG PROGRAM LSTM
     // ===================================
     let model = null; // Menyimpan model LSTM 
-    const kursRupiah = 17800; // Kurs Rupiah ke USDs
+    const kursRupiah = 18000; // Kurs Rupiah ke USD
     let modelReady = false; // Status model selesai training atau belum
     let historicalData = { prices: [] }; // Menyimpan data historis harga emas
     const gramPerOz = 31.1034768; // konversi gram ke troy ounce.
@@ -323,11 +350,92 @@
         min: [Infinity, Infinity, Infinity, Infinity, Infinity],
         max: [-Infinity, -Infinity, -Infinity, -Infinity, -Infinity]
     };
-    // Panjang sequence untuk input LSTM
     const SEQUENCE_LEN = 10;
-     // ===================================
-     // 1. MEMBACA DATA CSV HISTORIS HARGA EMAS
-     // ===================================
+    
+    // Elemen input
+    const tanggalInput = document.getElementById('tanggal');
+    const bulanInput = document.getElementById('bulan');
+    const tahunInput = document.getElementById('tahun');
+    const karatSelect = document.getElementById('karatSelect');
+    const predictBtn = document.getElementById('predictBtn');
+    const validationMsgDiv = document.getElementById('inputValidationMsg');
+    
+    function validateInputsAndEnableButton() {
+        if (!modelReady) {
+            predictBtn.disabled = true;
+            validationMsgDiv.innerText = '';
+            return false;
+        }
+        
+        const tanggal = tanggalInput.value.trim();
+        const bulan = bulanInput.value.trim();
+        const tahun = tahunInput.value.trim();
+        const karat = karatSelect.value;
+        
+        let isValid = true;
+        let msg = '';
+        
+        if (!tanggal) {
+            isValid = false;
+            msg = '❌ Tanggal harus diisi';
+        } else if (!bulan) {
+            isValid = false;
+            msg = '❌ Bulan harus diisi';
+        } else if (!tahun) {
+            isValid = false;
+            msg = '❌ Tahun harus diisi';
+        } else if (!karat) {
+            isValid = false;
+            msg = '❌ Silakan pilih karat';
+        } else {
+            const tgl = parseInt(tanggal);
+            const bln = parseInt(bulan);
+            const thn = parseInt(tahun);
+            
+            if (isNaN(tgl) || isNaN(bln) || isNaN(thn)) {
+                isValid = false;
+                msg = '❌ Input tanggal/bulan/tahun tidak valid';
+            } else {
+                // Validasi tanggal (hari dalam bulan)
+                const maxDay = new Date(thn, bln, 0).getDate();
+                if (tgl < 1 || tgl > maxDay) {
+                    isValid = false;
+                    msg = `❌ Tanggal ${tgl} tidak valid untuk bulan ${bln}/${thn}`;
+                }
+            }
+        }
+        
+        if (isValid && modelReady) {
+            predictBtn.disabled = false;
+            validationMsgDiv.innerText = '✅ Semua input valid, siap prediksi!';
+            validationMsgDiv.style.color = '#aaffaa';
+        } else {
+            predictBtn.disabled = true;
+            if (msg) {
+                validationMsgDiv.innerText = msg;
+                validationMsgDiv.style.color = '#ffaa66';
+            } else if (!modelReady) {
+                validationMsgDiv.innerText = '⏳ Model sedang memuat, tunggu sebentar...';
+                validationMsgDiv.style.color = '#ffd966';
+            } else {
+                validationMsgDiv.innerText = '⚠️ Lengkapi semua data untuk memprediksi';
+                validationMsgDiv.style.color = '#ffaa66';
+            }
+        }
+        
+        return isValid && modelReady;
+    }
+    
+    function bindInputEvents() {
+        tanggalInput.addEventListener('input', validateInputsAndEnableButton);
+        bulanInput.addEventListener('input', validateInputsAndEnableButton);
+        tahunInput.addEventListener('input', validateInputsAndEnableButton);
+        karatSelect.addEventListener('change', validateInputsAndEnableButton);
+    }
+    
+    // ===================================
+    // 1. MEMBACA DATA CSV HISTORIS HARGA EMAS
+    // ===================================
     async function loadCSVData() {
         const statusDiv = document.getElementById('status');
         statusDiv.innerHTML = '<span class="loading-spinner"></span> Membaca file CSV...';
@@ -578,9 +686,11 @@
         modelReady = true;
         
         progressWrapper.style.display = 'none';
-        statusDiv.innerHTML = `✅ Model siap! (${sequences.length} sequences trained)`;
+        statusDiv.innerHTML = `✅ Siap digunakan!`;
         statusDiv.className = 'status-card success';
-        document.getElementById('predictBtn').disabled = false;
+        
+        // Setelah model siap, cek kembali validasi input untuk mengaktifkan tombol
+        validateInputsAndEnableButton();
     }
     
     function extrapolatePrice(targetTimestamp) {
@@ -610,19 +720,16 @@
             return;
         }
         
-        const tanggal = parseInt(document.getElementById('tanggal').value);
-        const bulan = parseInt(document.getElementById('bulan').value);
-        const tahun = parseInt(document.getElementById('tahun').value);
-        const selectedKarat = parseInt(document.getElementById('karatSelect').value);
+        // Validasi ulang sebelum prediksi (double-check)
+        if (!validateInputsAndEnableButton()) {
+            alert("Harap lengkapi semua input dengan benar terlebih dahulu.");
+            return;
+        }
         
-        if (isNaN(selectedKarat)) {
-            alert("Silakan pilih karat!");
-            return;
-        }
-        if (isNaN(tanggal) || isNaN(bulan) || isNaN(tahun)) {
-            alert("Isi tanggal, bulan, tahun dengan valid!");
-            return;
-        }
+        const tanggal = parseInt(tanggalInput.value);
+        const bulan = parseInt(bulanInput.value);
+        const tahun = parseInt(tahunInput.value);
+        const selectedKarat = parseInt(karatSelect.value);
         
         const maxDay = new Date(tahun, bulan, 0).getDate();
         if (tanggal < 1 || tanggal > maxDay) {
@@ -667,7 +774,7 @@
                 const sequence = getLatestSequence();
                 if (sequence && sequence.length === SEQUENCE_LEN) {
                     const inputTensor = tf.tensor3d([sequence]);
-                    const prediction = model.predict(inputTensor); // Proses prediksi LSTM
+                    const prediction = model.predict(inputTensor);
                     let lastPrediction = denormalizePrice(prediction.dataSync()[0]);
                     inputTensor.dispose();
                     prediction.dispose();
@@ -738,32 +845,16 @@
         // ========================================================
         document.getElementById('output').innerHTML = outputHTML;
     }
-    
-    function setDefaultDate() {
-        if (historicalData.prices.length > 0) {
-            const lastDate = historicalData.prices[historicalData.prices.length-1].date;
-            const parts = lastDate.split('/');
-            if (parts.length === 3) {
-                document.getElementById('tanggal').value = parseInt(parts[0]);
-                document.getElementById('bulan').value = parseInt(parts[1]);
-                document.getElementById('tahun').value = parseInt(parts[2]);
-                return;
-            }
-        }
-        const today = new Date();
-        document.getElementById('tahun').value = today.getFullYear();
-        document.getElementById('bulan').value = today.getMonth() + 1;
-        document.getElementById('tanggal').value = today.getDate();
-    }
-    
+     
     async function init() {
+        bindInputEvents(); 
         const success = await loadCSVData();
         if (!success) {
             document.getElementById('predictBtn').disabled = true;
+            validationMsgDiv.innerText = '❌ Gagal memuat data, periksa file CSV';
             return;
         }
         
-        setDefaultDate();
         await buildLSTMModel();
     }
     
