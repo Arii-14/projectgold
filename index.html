@@ -127,17 +127,15 @@
         text-align: center;
         width: 100%;
         cursor: pointer;
-        appearance: none;          /* Hilangkan arrow default di beberapa browser */
+        appearance: none;
         -webkit-appearance: none;
         -moz-appearance: none;
-        /* Tambahkan custom arrow dengan posisi tidak terlalu ujung */
         background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23FFD966' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
         background-repeat: no-repeat;
-        background-position: right 1.2rem center;   /* anak panah tidak paling ujung, ada jarak 1.2rem dari kanan */
+        background-position: right 1.2rem center;
         background-size: 1.2rem;
-        padding-right: 2.8rem;     /* beri ruang ekstra agar teks tidak ketutupan panah */
+        padding-right: 2.8rem;
     }
-    /* Hover & focus tetap sama */
     input:focus, select:focus {
         border-color: gold;
         box-shadow: 0 0 6px rgba(255,215,0,0.6);
@@ -147,7 +145,6 @@
         color: #bbaa77;
         font-size: 0.85rem;
     }
-    /* style khusus untuk option (opsional) */
     select option {
         background: #0f2f3b;
         color: #f0f3f8;
@@ -311,6 +308,7 @@
             <label>📅 TAHUN</label>
             <input type="number" id="tahun" placeholder="YYYY" value="">
         </div>
+        
         <div class="input-group">
             <label>KARAT</label>
             <select id="karatSelect">
@@ -395,6 +393,9 @@
             if (isNaN(tgl) || isNaN(bln) || isNaN(thn)) {
                 isValid = false;
                 msg = '❌ Input tanggal/bulan/tahun tidak valid';
+            } else if (bln < 1 || bln > 12) { // VALIDASI BULAN
+                isValid = false;
+                msg = '❌ Bulan harus antara 1 - 12';
             } else {
                 // Validasi tanggal (hari dalam bulan)
                 const maxDay = new Date(thn, bln, 0).getDate();
@@ -484,6 +485,10 @@
                 }
                 
                 if (!validDate) continue;
+                
+                // Validasi bulan saat loading data
+                if (month < 1 || month > 12) continue;
+                
                 let parsedDate = `${day.toString().padStart(2,'0')}/${month.toString().padStart(2,'0')}/${year}`;
                 let priceValues = [];
 
@@ -686,7 +691,7 @@
         modelReady = true;
         
         progressWrapper.style.display = 'none';
-        statusDiv.innerHTML = `✅ Siap digunakan!`;
+        statusDiv.innerHTML = `✅ Model siap!`;
         statusDiv.className = 'status-card success';
         
         // Setelah model siap, cek kembali validasi input untuk mengaktifkan tombol
@@ -730,6 +735,12 @@
         const bulan = parseInt(bulanInput.value);
         const tahun = parseInt(tahunInput.value);
         const selectedKarat = parseInt(karatSelect.value);
+        
+        // VALIDASI BULAN SEBELUM PREDIKSI
+        if (bulan < 1 || bulan > 12) {
+            alert(`Bulan ${bulan} tidak valid. Bulan harus antara 1 - 12`);
+            return;
+        }
         
         const maxDay = new Date(tahun, bulan, 0).getDate();
         if (tanggal < 1 || tanggal > maxDay) {
